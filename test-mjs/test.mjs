@@ -9,7 +9,7 @@ const mockbus = {
     this.queues[key] = {
       listening: false,
       on: function () {}
-    };
+    }
     // bus.listen(key, event);
   },
   on: function () {},
@@ -17,7 +17,7 @@ const mockbus = {
     this.pubsubqueues[key] = {
       listening: false,
       on: function () {}
-    };
+    }
     // bus.subscribe(key, event);
   },
   queues: {},
