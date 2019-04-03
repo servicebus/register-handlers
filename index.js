@@ -1,266 +1,313 @@
-var amqpMatch = require('amqp-match');
-var async = require('async');
-var debug = require('debug')('register-handlers');
-var objectifyFolder = require('objectify-folder');
-var trace = require('debug')('register-handlers:trace');
-var util = require('util');
-var warn = require('debug')('register-handlers:warn');
+var amqpMatch = require('amqp-match')
+var async = require('async')
+var debug = require('debug')('register-handlers')
+var objectifyFolder = require('objectify-folder')
+var trace = require('debug')('register-handlers:trace')
+var util = require('util')
+var warn = require('debug')('register-handlers:warn')
 
 function QueuePipeline (options) {
-  this.handlers = [];
-  this.queueName = options.queueName;
-  this.size = 0;
+  this.handlers = []
+  this.queueName = options.queueName
+  this.size = 0
 }
 
 QueuePipeline.prototype.push = function (handler) {
-  this.size++;
-  return this.handlers.push(handler);
-};
+  this.size++
+  return this.handlers.push(handler)
+}
 
 function RoutingKeyPipeline (options) {
-  this.handlers = [];
-  this.routingKey = options.routingKey;
-  this.size = 0;
+  this.handlers = []
+  this.routingKey = options.routingKey
+  this.size = 0
 }
 
 RoutingKeyPipeline.prototype.push = function (handler) {
-  this.size++;
-  return this.handlers.push(handler);
-};
+  this.size++
+  return this.handlers.push(handler)
+}
 
 function Handler (options) {
+  if (options.where && typeof options.where !== 'function')
+    throw new Error(
+      'module.exports.where must be of type function and return a boolean statement'
+    )
+  if (options.listen && !(options.queueName || options.command))
+    throw new Error(
+      'module.exports.listen must be accompanied by a module.exports.queueName specification.'
+    )
+  if (options.subscribe && !(options.routingKey || options.event))
+    throw new Error(
+      'module.exports.subscribe must be accompanied by a module.exports.routingKey specification.'
+    )
+  if (options.listen && options.subscribe)
+    throw new Error(
+      'module.exports.listen and module.exports.subscribe cannot both be specified on a handler.'
+    )
 
-  if (options.where && typeof options.where !== 'function') throw new Error('module.exports.where must be of type function and return a boolean statement');
-  if (options.listen && ! (options.queueName || options.command)) throw new Error('module.exports.listen must be accompanied by a module.exports.queueName specification.')
-  if (options.subscribe && ! (options.routingKey || options.event)) throw new Error('module.exports.subscribe must be accompanied by a module.exports.routingKey specification.')
-  if (options.listen && options.subscribe) throw new Error('module.exports.listen and module.exports.subscribe cannot both be specified on a handler.')
-
-  this.ack = options.ack ? options.ack : (options.command || options.event) ? true : undefined;
-  this.listen = options.listen;
-  this.queueName = options.queueName || options.command;
-  this.routingKey = options.routingKey || options.event;
-  this.subscribe = options.subscribe;
-  this.type = options.type;
-  this.where = options.where;
+  this.ack = options.ack
+    ? options.ack
+    : options.command || options.event
+    ? true
+    : undefined
+  this.listen = options.listen
+  this.queueName = options.queueName || options.command
+  this.routingKey = options.routingKey || options.event
+  this.subscribe = options.subscribe
+  this.type = options.type
+  this.where = options.where
 }
 
 function addHandler (pipelines, handler) {
   debug('adding Handler - pipelines', pipelines)
   debug('adding Handler - handler', handler)
   if (handlerIsOrSharesListenQueue(handler)) {
-    if ( ! pipelines[handler.queueName]) pipelines[handler.queueName] = new QueuePipeline({ queueName: handler.queueName });
-    pipelines[handler.queueName].push(handler);
+    if (!pipelines[handler.queueName])
+      pipelines[handler.queueName] = new QueuePipeline({
+        queueName: handler.queueName
+      })
+    pipelines[handler.queueName].push(handler)
   } else {
-    if ( ! pipelines[handler.routingKey]) pipelines[handler.routingKey] = new RoutingKeyPipeline({ routingKey: handler.routingKey });
-    pipelines[handler.routingKey].push(handler);
+    if (!pipelines[handler.routingKey])
+      pipelines[handler.routingKey] = new RoutingKeyPipeline({
+        routingKey: handler.routingKey
+      })
+    pipelines[handler.routingKey].push(handler)
   }
 }
 
 function handlerIsOrSharesListenQueue (handler) {
-  return handler.queueName !== undefined;
-};
+  return handler.queueName !== undefined
+}
 
 function prepareOptions (options) {
-  options = options || {};
-  options.pipelines = {};
+  options = options || {}
+  options.pipelines = {}
 
-  if ( ! options.handlers && ! options.path) throw new Error('register-handlers requires a folder path or object of required modules');
+  if (!options.handlers && !options.path)
+    throw new Error(
+      'register-handlers requires a folder path or object of required modules'
+    )
 
   if (options.path) {
-
-    var i = 0;
+    var i = 0
     var handlers = objectifyFolder({
       fn: function (mod, result) {
-        if ( ! (mod.queueName || mod.routingKey || mod.command || mod.event ) || ! (mod.listen || mod.subscribe)) return;
-        addHandler(options.pipelines, new Handler(mod));
+        if (
+          !(mod.queueName || mod.routingKey || mod.command || mod.event) ||
+          !(mod.listen || mod.subscribe)
+        )
+          return
+        addHandler(options.pipelines, new Handler(mod))
       },
       path: options.path
-    });
-
+    })
   } else if (options.handlers) {
     options.handlers.forEach(function (handler) {
-      addHandler(options.pipelines, handler);
-    });
+      addHandler(options.pipelines, handler)
+    })
   }
 
-  return options;
+  return options
 }
 
 function registerPipeline (options, pipeline) {
-
   debug('registering pipeline', pipeline)
 
-  var bus = options.bus;
+  var bus = options.bus
 
-  var firstHandler = pipeline.handlers[0];
+  var firstHandler = pipeline.handlers[0]
 
-  var isAck = firstHandler.ack;
-  var isListen = firstHandler.listen !== undefined;
+  var isAck = firstHandler.ack
+  var isListen = firstHandler.listen !== undefined
   // var hasQueueNameSpecified = firstHandler.queueName !== undefined;
 
-  var method = (isListen) ? 'listen' : 'subscribe';
+  var method = isListen ? 'listen' : 'subscribe'
   // var queueName = hasQueueNameSpecified ? firstHandler.queueName :
   //       options.queuePrefix !== undefined ? util.format('%s-', queueName) : firstHandler.routingKey;
 
   // var queueName = firstHandler.queueName;
 
-  var queueName = ! isListen ?
-    (firstHandler.queueName) ? firstHandler.queueName :
-      (options.queuePrefix !== undefined ? util.format(options.queuePrefix + '-%s', firstHandler.routingKey) : firstHandler.routingKey) :
-        firstHandler.routingKey || firstHandler.queueName;
+  var queueName = !isListen
+    ? firstHandler.queueName
+      ? firstHandler.queueName
+      : options.queuePrefix !== undefined
+      ? util.format(options.queuePrefix + '-%s', firstHandler.routingKey)
+      : firstHandler.routingKey
+    : firstHandler.routingKey || firstHandler.queueName
 
   debug('registering pipeline: queuename', queueName)
   debug('registering pipeline: method', method)
 
   function handleError (msg, err) {
-    debug('error handling message with cid ', msg.cid);
-    debug(err.stack || err.message || err);
-    if (firstHandler.ack) msg.handle.reject(function () {
-      throw err;
-    });
+    debug('error handling message with cid ', msg.cid)
+    debug(err.stack || err.message || err)
+    if (firstHandler.ack)
+      msg.handle.reject(function () {
+        throw err
+      })
   }
 
   function handleIncomingMessage (pipeline, msg, message) {
-
     var context = {
       queueName: message.fields.queueName,
       routingKey: message.fields.routingKey,
       correlationId: message.properties.correlationId,
       bus: bus
-    };
-
-    var handlers = pipeline.handlers.filter(function (handler) {
-      return (handler.routingKey === undefined || (handler.routingKey !== undefined && amqpMatch(message.fields.routingKey, handler.routingKey))) &&
-             (handler.type === undefined || handler.type === msg.type) &&
-             (handler.where === undefined || handler.where && handler.where(msg));
-    });
-
-    if (handlers.length === 0) {
-      warn('no handler registered to handle %j', msg);
-      if (isAck) msg.handle.ack();
-      return;
     }
 
-    trace('handling message: %j', msg);
+    var handlers = pipeline.handlers.filter(function (handler) {
+      return (
+        (handler.routingKey === undefined ||
+          (handler.routingKey !== undefined &&
+            amqpMatch(message.fields.routingKey, handler.routingKey))) &&
+        (handler.type === undefined || handler.type === msg.type) &&
+        (handler.where === undefined || (handler.where && handler.where(msg)))
+      )
+    })
 
-    if (process.domain) process.domain.once('error', (options.handleError || handleError).bind(context, msg));
+    if (handlers.length === 0) {
+      warn('no handler registered to handle %j', msg)
+      if (isAck) msg.handle.ack()
+      return
+    }
 
-    async.map(handlers, function (handler, cb) {
-      try {
-        handler[method].call(context, msg, cb);
-      } catch (err) {
-        if (err) return (options.handleError || handleError).call(context, msg, err);
+    trace('handling message: %j', msg)
 
-        trace('handled message with error: %j', msg);
+    if (process.domain)
+      process.domain.once(
+        'error',
+        (options.handleError || handleError).bind(context, msg)
+      )
 
-        if (isAck) return msg.handle.ack(cb);
+    async.map(
+      handlers,
+      function (handler, cb) {
+        try {
+          handler[method].call(context, msg, cb)
+        } catch (err) {
+          if (err)
+            return (options.handleError || handleError).call(context, msg, err)
 
-        else cb();
+          trace('handled message with error: %j', msg)
+
+          if (isAck) return msg.handle.ack(cb)
+          else cb()
+        }
+      },
+      function (err) {
+        if (err)
+          return (options.handleError || handleError).call(context, msg, err)
+
+        if (isAck) msg.handle.ack()
+
+        if (options.onHandlerCompleted)
+          options.onHandlerCompleted.call(context, msg, message)
+
+        trace('handled message: %j', msg)
       }
-    }, function (err) {
-      if (err) return (options.handleError || handleError).call(context, msg, err);
-
-      if (isAck) msg.handle.ack();
-
-      if (options.onHandlerCompleted) options.onHandlerCompleted.call(context, msg, message);
-
-      trace('handled message: %j', msg);
-
-    });
-
+    )
   }
 
-  var obj = bus[method].call(bus, queueName,
-                        { ack: isAck, routingKey: firstHandler.routingKey },
-                        handleIncomingMessage.bind(bus, pipeline));
+  var obj = bus[method].call(
+    bus,
+    queueName,
+    { ack: isAck, routingKey: firstHandler.routingKey },
+    handleIncomingMessage.bind(bus, pipeline)
+  )
 
   if (process.env.NODE_ENV === 'test') {
     pipeline.handleIncomingMessage = handleIncomingMessage.bind(bus, pipeline)
   }
 
-  if (pipeline.size === 1 || pipeline instanceof RoutingKeyPipeline) return;
+  if (pipeline.size === 1 || pipeline instanceof RoutingKeyPipeline) return
 
-  pipeline.handlers.filter(function (h) { return h !== firstHandler; }).forEach(function (handler) {
+  pipeline.handlers
+    .filter(function (h) {
+      return h !== firstHandler
+    })
+    .forEach(function (handler) {
+      if (handler.ack !== isAck)
+        throw new Error(
+          'module.exports.ack for %s handlers do not match',
+          firstHandler.queueName || firstHandler.routingKey
+        )
 
-    if (handler.ack !== isAck) throw new Error('module.exports.ack for %s handlers do not match', firstHandler.queueName || firstHandler.routingKey);
-
-    var queueType = method === 'subscribe' ? 'pubsubqueues' : 'queues';
+      var queueType = method === 'subscribe' ? 'pubsubqueues' : 'queues'
 
       function bindHandler () {
-
-        if (pipeline.handlers.some(function (h) { return handler.routingKey !== h.routingKey; })) {
-
+        if (
+          pipeline.handlers.some(function (h) {
+            return handler.routingKey !== h.routingKey
+          })
+        ) {
           if (bus[queueType][queueName].listening) {
-            bus[queueType][queueName].listenChannel.bindQueue(queueName, bus.exchangeName, handler.routingKey);
+            bus[queueType][queueName].listenChannel.bindQueue(
+              queueName,
+              bus.exchangeName,
+              handler.routingKey
+            )
           } else {
             bus[queueType][queueName].on('listening', function () {
-              bus[queueType][queueName].listenChannel.bindQueue(queueName, bus.exchangeName, handler.routingKey);
-            });
+              bus[queueType][queueName].listenChannel.bindQueue(
+                queueName,
+                bus.exchangeName,
+                handler.routingKey
+              )
+            })
           }
-
         }
-
       }
 
-      if (bus.initialized) bindHandler();
-      else bus.on('ready', bindHandler);
-
-  });
-
+      if (bus.initialized) bindHandler()
+      else bus.on('ready', bindHandler)
+    })
 }
 
 module.exports = function (options) {
+  if (!options.bus)
+    throw new Error('register-handlers requires in initialized bus variable')
 
-  if ( ! options.bus) throw new Error('register-handlers requires in initialized bus variable');
-
-  if (! options.modules) {
-
-    prepareOptions(options);
+  if (!options.modules) {
+    prepareOptions(options)
 
     Object.keys(options.pipelines).forEach(function (key) {
+      var pipeline = options.pipelines[key]
 
-      var pipeline = options.pipelines[key];
+      registerPipeline(options, pipeline)
+    })
 
-      registerPipeline(options, pipeline);
-
-    });
-
-    return options;
-
+    return options
   } else {
-
     return new Promise((resolve, reject) => {
-
       objectifyFolder = require('objectify-folder/modules')
       options.pipelines = {}
 
       objectifyFolder({
         fn: function (mod, result) {
           debug('imported module', mod)
-          if ( ! (mod.queueName || mod.routingKey || mod.command || mod.event ) || ! (mod.listen || mod.subscribe)) return;
-          addHandler(options.pipelines, new Handler(mod));
+          if (
+            !(mod.queueName || mod.routingKey || mod.command || mod.event) ||
+            !(mod.listen || mod.subscribe)
+          )
+            return
+          addHandler(options.pipelines, new Handler(mod))
         },
         path: options.path
-      }).then((modules) => {
-
+      }).then(modules => {
         debug('objectified folder - options', options)
 
         Object.keys(options.pipelines).forEach(function (key) {
+          var pipeline = options.pipelines[key]
 
-          var pipeline = options.pipelines[key];
-
-          registerPipeline(options, pipeline);
-
-        });
+          registerPipeline(options, pipeline)
+        })
 
         resolve(options)
-
       })
-
     })
-
   }
+}
 
-};
-
-module.exports.Handler = Handler;
+module.exports.Handler = Handler
