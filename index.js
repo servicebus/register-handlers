@@ -123,8 +123,8 @@ function registerPipeline (options, pipeline) {
   function handleIncomingMessage (pipeline, msg, message) {
 
     var context = {
-      queueName: message.fields.queueName,
-      routingKey: message.fields.routingKey,
+      queueName: message.fields && message.fields.queueName,
+      routingKey: message.fields && message.fields.routingKey,
       correlationId: message.properties.correlationId,
       bus: bus
     };
