@@ -1,8 +1,8 @@
-[![Build Status](https://travis-ci.org/mateodelnorte/servicebus-register-handlers.svg?branch=master)](https://travis-ci.org/mateodelnorte/servicebus-register-handlers)
+# @servicebus/register-handlers
+[![Build Status](https://travis-ci.org/servicebus/register-handlers.svg?branch=master)](https://travis-ci.org/servicebus/register-handlers)
+[![codecov](https://codecov.io/gh/servicebus/register-handlers/branch/master/graph/badge.svg)](https://codecov.io/gh/servicebus/register-handlers)
 
-# servicebus-register-handlers
-
-servicebus-register-handlers provides convention based message/event handler definition for distributed services using servicebus. 
+`@servicebus/register-handlers` provides convention based message/event handler definition for distributed services using servicebus. 
 
 ## Configuration
 
@@ -13,7 +13,7 @@ const bus = require('./lib/bus');
 const config = require('cconfig')();
 const handleAudit = require('handle-audit');
 const log = require('llog');
-const registerHandlers = require('servicebus-register-handlers');
+const registerHandlers = require('@servicebus/register-handlers');
 const util = require('util');
 
 module.exports.start = (cb) => {
@@ -137,7 +137,7 @@ This will be done automatically for you when you specify the option `modules` to
 import path from 'path'
 import log from 'llog'
 import errortrap from 'errortrap'
-import registerHandlers from 'servicebus-register-handlers'
+import registerHandlers from '@servicebus/register-handlers'
 import sbc from 'servicebus-bus-common';
 import { config } from '../config.mjs'
 import server from 'express-api-common'
