@@ -120,7 +120,7 @@ function registerPipeline (options, pipeline) {
     });
   }
 
-  function handleIncomingMessage (pipeline, msg, message) {
+  function handleIncomingMessage (pipeline, msg, message, resolve, reject) {
 
     var context = {
       queueName: message.fields && message.fields.queueName,
@@ -158,11 +158,15 @@ function registerPipeline (options, pipeline) {
         else cb();
       }
     }, function (err) {
+      if (err && reject) reject(err)
+
       if (err) return (options.handleError || handleError).call(context, msg, err);
 
       if (isAck) msg.handle.ack();
 
       if (options.onHandlerCompleted) options.onHandlerCompleted.call(context, msg, message);
+
+      if (resolve) resolve()
 
       trace('handled message: %j', msg);
 
