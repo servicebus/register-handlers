@@ -106,6 +106,12 @@ describe('register-handlers', function () {
     registered.pipelines.should.have.property('six');
     registered.pipelines['six'].should.have.property('size', 1);
 
+    registered.pipelines.should.have.property('ack-off');
+    registered.pipelines['ack-off'].handlers[0].should.have.property('ack', false);
+
+    registered.pipelines.should.have.property('domain.command');
+    registered.pipelines['domain.command'].handlers[0].should.have.property('ack', true);
+
   });
 
   it('simplified api should map to correct values and default ack to true', function () {

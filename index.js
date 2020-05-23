@@ -35,7 +35,7 @@ function Handler (options) {
   if (options.subscribe && ! (options.routingKey || options.event)) throw new Error('module.exports.subscribe must be accompanied by a module.exports.routingKey specification.')
   if (options.listen && options.subscribe) throw new Error('module.exports.listen and module.exports.subscribe cannot both be specified on a handler.')
 
-  this.ack = options.ack ? options.ack : (options.command || options.event) ? true : undefined;
+  this.ack = options.ack === false ? false : options.ack !== false && (options.command || options.event) ? true : undefined;
   this.listen = options.listen;
   this.queueName = options.queueName || options.command;
   this.routingKey = options.routingKey || options.event;
