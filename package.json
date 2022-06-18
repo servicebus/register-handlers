@@ -23,7 +23,7 @@
   "homepage": "https://github.com/servicebus/register-handlers",
   "dependencies": {
     "amqp-match": "0.0.0",
-    "async": "3.2.0",
+    "async": "3.2.4",
     "debug": "4.3.1",
     "objectify-folder": "1.2.0"
   },
